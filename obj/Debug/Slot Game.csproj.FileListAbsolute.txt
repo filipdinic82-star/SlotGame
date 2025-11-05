@@ -9,3 +9,13 @@ C:\Users\korisnik\source\repos\Praksa\obj\Debug\Slot Game.csproj.GenerateResourc
 C:\Users\korisnik\source\repos\Praksa\obj\Debug\Slot Game.csproj.CoreCompileInputs.cache
 C:\Users\korisnik\source\repos\Praksa\obj\Debug\Praksa.exe
 C:\Users\korisnik\source\repos\Praksa\obj\Debug\Praksa.pdb
+C:\Users\korisnik\GitRepoz\SlotGameProj\bin\Debug\Praksa.exe.config
+C:\Users\korisnik\GitRepoz\SlotGameProj\bin\Debug\Praksa.exe
+C:\Users\korisnik\GitRepoz\SlotGameProj\bin\Debug\Praksa.pdb
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Slot Game.csproj.AssemblyReference.cache
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Praksa.Form1.resources
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Praksa.Properties.Resources.resources
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Slot Game.csproj.GenerateResource.cache
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Slot Game.csproj.CoreCompileInputs.cache
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Praksa.exe
+C:\Users\korisnik\GitRepoz\SlotGameProj\obj\Debug\Praksa.pdb
