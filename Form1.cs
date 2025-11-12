@@ -14,19 +14,21 @@ namespace Praksa
         private Simboli[][] columnTypes;
         private TextBox resultTextBox;
         private Timer dropTimer;
+        private Timer bounceTimer;
+        private bool[][] bounceDone;
         private int animationStep = 0;
         const int Step = 50;
         private Point[][] originalPositions;
-        private const int SpinDuzMs = 3000; 
+        private const int SpinDuzMs = 3000;
 
         enum Simboli
         {
             A = 1,
             K = 2,
             J = 3,
-            Dama = 4,
-            Kralj = 5,
-            Jack = 6,
+            Kruna = 4,
+            Kovceg = 5,
+            Sedmica = 6,
         }
 
         public Form1()
@@ -37,6 +39,9 @@ namespace Praksa
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
+            string bgPath = Path.Combine(Application.StartupPath, "images", "pozadina.jpg");
+            this.BackgroundImage = Image.FromFile(bgPath);
+            this.BackgroundImageLayout = ImageLayout.Stretch;
 
             int numColumns = 5;
             int columnWidth = 150;
@@ -145,7 +150,7 @@ namespace Praksa
                 Location = new Point(300, 10),
                 TextAlign = HorizontalAlignment.Center,
                 BackColor = Color.Gray,
-                Font = new Font("Segoe UI", 16, FontStyle.Regular)
+                Font = new Font("Segoe UI", 18, FontStyle.Bold)
             };
             this.Controls.Add(resultTextBox);
 
@@ -160,7 +165,7 @@ namespace Praksa
                 Size = new Size(buttonWidth, buttonHeight),
                 Location = new Point(buttonX, buttonY),
                 BackColor = Color.LightGray,
-                Font = new Font("Segoe UI", 14, FontStyle.Bold)
+                Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
             shuffleButton.Click += ShuffleButton_Click;
             this.Controls.Add(shuffleButton);
@@ -168,6 +173,10 @@ namespace Praksa
             dropTimer = new Timer();
             dropTimer.Interval = 25;
             dropTimer.Tick += dropTimer_Tick;
+
+            bounceTimer = new Timer();
+            bounceTimer.Interval = 10;
+            bounceTimer.Tick += BounceTimer_Tick;
 
             ShuffleImages();
         }
@@ -206,7 +215,6 @@ namespace Praksa
                 var panel = columnPictures[col][0].Parent as Panel;
                 int labelHeight = panel.Controls.OfType<Label>().FirstOrDefault()?.Height ?? 0;
 
-                
                 var bottomPic = columnPictures[col].Last();
                 if (bottomPic.Top >= panel.Height + labelHeight)
                 {
@@ -229,31 +237,90 @@ namespace Praksa
                 }
             }
 
-            
             if ((DateTime.Now - spinStart).TotalMilliseconds >= SpinDuzMs)
             {
                 dropTimer.Stop();
+                StartBounceAnimation();
+            }
+        }
+
+        private void StartBounceAnimation()
+        {
+            int cols = columnPictures.Length;
+            bounceDone = new bool[cols][];
+            for (int col = 0; col < cols; col++)
+            {
+                bounceDone[col] = new bool[columnPictures[col].Length];
+            }
+            bounceTimer.Start();
+        }
+
+        private void BounceTimer_Tick(object sender, EventArgs e)
+        {
+            bool allDone = true;
+
+            for (int col = 0; col < columnPictures.Length; col++)
+            {
+                bool columnDone = true;
+                Panel panel = columnPictures[col][0].Parent as Panel;
+                if (panel == null) continue;
+
+                for (int r = 0; r < columnPictures[col].Length; r++)
+                {
+                    PictureBox pic = columnPictures[col][r];
+                    int targetY = originalPositions[col][r].Y;
+                    int dy = targetY - pic.Top;
+
+
+                    if (Math.Abs(dy) > 6)
+                    {
+                        pic.Top += Math.Sign(dy) * 10;
+                        columnDone = false;
+                    }
+                    else if (!bounceDone[col][r])
+                    {
+
+                        pic.Top = targetY + (Math.Sign(dy) * 6);
+                        pic.Refresh();
+                        System.Threading.Thread.Sleep(8);
+                        pic.Top = targetY;
+                        bounceDone[col][r] = true;
+                    }
+
+
+                    if (pic.Bottom < 0)
+                        pic.Visible = false;
+                    else if (pic.Top > panel.Height)
+                        pic.Visible = false;
+                    else
+                        pic.Visible = true;
+                }
+
+                if (!columnDone)
+                    allDone = false;
+            }
+
+            if (allDone)
+            {
+                bounceTimer.Stop();
 
                 for (int col = 0; col < columnPictures.Length; col++)
                 {
-                    
-                    var panel = columnPictures[col][0].Parent as Panel;
-                    var lbl = panel.Controls.OfType<Label>().FirstOrDefault();
-                    int labelBottom = lbl != null ? lbl.Height : 0;
-                    Rectangle visibleRect = new Rectangle(0, labelBottom, panel.Width, panel.Height - labelBottom);
+                    Panel panel = columnPictures[col][0].Parent as Panel;
+                    if (panel == null) continue;
 
-                    var visiblePics = columnPictures[col]
-                        .Where(p => p.Bounds.IntersectsWith(visibleRect) && p.Visible)
-                        .OrderBy(p => p.Top)
-                        .ToArray();
+                    int visibleCount = 3;
+                    int invisibleIndex = 0;
 
-                    if (visiblePics.Length >= 3)
+                    columnPictures[col][invisibleIndex].Top =
+                        originalPositions[col][1].Y - columnPictures[col][invisibleIndex].Height - 5;
+
+                    columnPictures[col][invisibleIndex].Visible = false;
+
+                    for (int r = 1; r <= visibleCount; r++)
                     {
-                        for (int i = 0; i < 3; i++)
-                        {
-                            var pic = visiblePics[i];
-                            pic.Location = originalPositions[col][i + 1];
-                        }
+                        columnPictures[col][r].Location = originalPositions[col][r];
+                        columnPictures[col][r].Visible = true;
                     }
                 }
 
@@ -331,14 +398,13 @@ namespace Praksa
                         case Simboli.A: rewardMessage = "$3"; break;
                         case Simboli.K: rewardMessage = "$4"; break;
                         case Simboli.J: rewardMessage = "$5"; break;
-                        case Simboli.Dama: rewardMessage = "$8"; break;
-                        case Simboli.Kralj: rewardMessage = "$10"; break;
-                        case Simboli.Jack: rewardMessage = "$12"; break;
+                        case Simboli.Kruna: rewardMessage = "$8"; break;
+                        case Simboli.Kovceg: rewardMessage = "$10"; break;
+                        case Simboli.Sedmica: rewardMessage = "$12"; break;
                     }
                     resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
                 }
             }
         }
-
     }
 }
