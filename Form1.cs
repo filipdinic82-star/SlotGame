@@ -19,6 +19,9 @@ namespace Praksa
         private const int SYMBOLS_PER_REEL = 3;
         private const int PICTURES_PER_REEL = SYMBOLS_PER_REEL + 1;
 
+        private const int REEL1_DURATION = 1300;
+        private const int REEL_STOPPAGE_DURATION = 300;
+
         private readonly Random m_random = new Random();
         // Form
         private TextBox m_resultTextBox;
@@ -248,6 +251,37 @@ namespace Praksa
             }
         }
 
+        private void CheckFowWins()
+        {
+            m_resultTextBox.Clear();
+
+            for (int rowIndex = 0; rowIndex < SYMBOLS_PER_REEL; rowIndex++)
+            {
+                var t0 = m_columnPictures[0][rowIndex + 1].Tag as Simboli?;
+                var t1 = m_columnPictures[1][rowIndex + 1].Tag as Simboli?;
+                var t2 = m_columnPictures[2][rowIndex + 1].Tag as Simboli?;
+
+                if (t0.HasValue && t1.HasValue && t2.HasValue && t0.Value == t1.Value && t1.Value == t2.Value)
+                {
+                    string rewardMessage = "$0";
+                    switch (t0.Value)
+                    {
+                        case Simboli.A: rewardMessage = "$3"; break;
+                        case Simboli.K: rewardMessage = "$4"; break;
+                        case Simboli.J: rewardMessage = "$5"; break;
+                        case Simboli.Kruna: rewardMessage = "$8"; break;
+                        case Simboli.Kovceg: rewardMessage = "$10"; break;
+                        case Simboli.Sedmica: rewardMessage = "$12"; break;
+                    }
+                    m_resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
+
+                    double rewardAmount = double.Parse(rewardMessage.Replace("$", ""));
+                    m_balance += rewardAmount;
+                    m_balanceButton.Text = $"BALANCE: ${m_balance}";
+                }
+            }
+        }
+
         // ~~ Events ~~ //
 
         private void PlayButton_Click(object sender, EventArgs e)
@@ -278,20 +312,18 @@ namespace Praksa
                     m_columnPictures[col][r].Top += m_step;
 
                 var panel = m_columnPictures[col][0].Parent as Panel;
-                int labelHeight = panel.Controls.OfType<Label>().FirstOrDefault()?.Height ?? 0;
-
                 var bottomPic = m_columnPictures[col].Last();
-                if (bottomPic.Top >= panel.Height + labelHeight)
+                if (bottomPic.Top >= panel.Height)
                 {
                     PictureBox recycled = bottomPic;
 
-                    for (int i = PICTURES_PER_REEL - 1; i > 0; i--)
+                    for (int i = SYMBOLS_PER_REEL; i > 0; i--)
                     {
                         m_columnPictures[col][i] = m_columnPictures[col][i - 1];
                     }
 
-                    recycled.Top = m_columnPictures[col][1].Top - recycled.Height - 10;
-                    int newIdx = m_random.Next(m_images.Length);
+                    recycled.Top = m_columnPictures[col][1].Top - SYMBOL_HEIGHT - SYMBOLS_GAP;
+                    int newIdx = m_random.Next(NUM_OF_SYMBOLS);
                     recycled.Image = (Image)m_images[newIdx].Clone();
                     recycled.Tag = (Simboli)(newIdx + 1);
 
@@ -299,7 +331,7 @@ namespace Praksa
                 }
             }
 
-            if (!m_isStopping && (DateTime.Now - m_startTime).TotalMilliseconds >= 2000)
+            if (!m_isStopping && (DateTime.Now - m_startTime).TotalMilliseconds >= REEL1_DURATION)
             {
                 m_isStopping = true;
                 m_currentStoppingColumn = 0;
@@ -308,7 +340,7 @@ namespace Praksa
             if (m_isStopping && m_currentStoppingColumn < NUM_OF_REELS)
             {
                 double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
-                if (elapsed >= 2000 + m_currentStoppingColumn * 600)
+                if (elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION)
                 {
                     m_reelStopped[m_currentStoppingColumn] = true;
                     StartBounceForColumn(m_currentStoppingColumn);
@@ -316,82 +348,14 @@ namespace Praksa
                 }
             }
 
+            // Check when all reels are stopped
             if (m_reelStopped.All(r => r))
             {
                 m_dropTimer.Stop();
-                CheckRowsForFirstThreeColumns_VisibleOnly();
+                CheckFowWins();
             }
         }
 
         private void BounceTimer_Tick(object sender, EventArgs e) { }
-
-        private void CheckRowsForFirstThreeColumns_VisibleOnly()
-        {
-            m_resultTextBox.Clear();
-
-            int colsToCheck = 3;
-            int neededVisibleRows = 3;
-
-            var visiblePerColumn = new System.Collections.Generic.List<PictureBox[]>();
-
-            for (int col = 0; col < colsToCheck; col++)
-            {
-                var panel = m_columnPictures[col][0].Parent as Panel;
-                if (panel == null)
-                {
-                    visiblePerColumn.Add(new PictureBox[0]);
-                    continue;
-                }
-
-                var lbl = panel.Controls.OfType<Label>().FirstOrDefault();
-                int labelBottom = lbl != null ? lbl.Height : 0;
-
-                Rectangle visibleRect = new Rectangle(0, labelBottom, panel.Width, panel.Height - labelBottom);
-
-                var visiblePics = m_columnPictures[col]
-                    .Where(pic => pic != null && pic.Bounds.IntersectsWith(visibleRect) && pic.Visible)
-                    .OrderBy(pic => pic.Top)
-                    .ToArray();
-
-                visiblePerColumn.Add(visiblePics);
-            }
-
-            for (int rowIndex = 0; rowIndex < neededVisibleRows; rowIndex++)
-            {
-                bool allHaveRow = true;
-                for (int c = 0; c < colsToCheck; c++)
-                {
-                    if (visiblePerColumn[c].Length <= rowIndex)
-                    {
-                        allHaveRow = false;
-                        break;
-                    }
-                }
-                if (!allHaveRow) continue;
-
-                var t0 = visiblePerColumn[0][rowIndex].Tag as Simboli?;
-                var t1 = visiblePerColumn[1][rowIndex].Tag as Simboli?;
-                var t2 = visiblePerColumn[2][rowIndex].Tag as Simboli?;
-
-                if (t0.HasValue && t1.HasValue && t2.HasValue && t0.Value == t1.Value && t1.Value == t2.Value)
-                {
-                    string rewardMessage = "$0";
-                    switch (t0.Value)
-                    {
-                        case Simboli.A: rewardMessage = "$3"; break;
-                        case Simboli.K: rewardMessage = "$4"; break;
-                        case Simboli.J: rewardMessage = "$5"; break;
-                        case Simboli.Kruna: rewardMessage = "$8"; break;
-                        case Simboli.Kovceg: rewardMessage = "$10"; break;
-                        case Simboli.Sedmica: rewardMessage = "$12"; break;
-                    }
-                    m_resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
-
-                    double rewardAmount = double.Parse(rewardMessage.Replace("$", ""));
-                    m_balance += rewardAmount;
-                    m_balanceButton.Text = $"BALANCE: ${m_balance}";
-                }
-            }
-        }
     }
 }
