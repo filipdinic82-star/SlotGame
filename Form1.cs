@@ -13,16 +13,16 @@ namespace Praksa
         private const int SYMBOL_HEIGHT = 150;
         private const int REELS_GAP = 30;
         private const int SYMBOLS_GAP = 5;
+        private const int NUM_OF_SYMBOLS = 6;
 
         private const int NUM_OF_REELS = 5;
         private const int SYMBOLS_PER_REEL = 3;
         private const int PICTURES_PER_REEL = SYMBOLS_PER_REEL + 1;
 
         private readonly Random m_random = new Random();
-        private Simboli[][] m_columnTypes;
         // Form
         private TextBox m_resultTextBox;
-        private Button m_m_balanceButton;
+        private Button m_balanceButton;
         private Button m_betButton;
         private PictureBox[][] m_columnPictures;
         private Image[] m_images;
@@ -90,7 +90,7 @@ namespace Praksa
             };
             this.Controls.Add(m_resultTextBox);
 
-            Button shuffleButton = new Button
+            Button playButton = new Button
             {
                 Text = "PLAY",
                 Size = new Size(140, 50),
@@ -98,10 +98,10 @@ namespace Praksa
                 BackColor = Color.LightGray,
                 Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
-            shuffleButton.Click += ShuffleButton_Click;
-            this.Controls.Add(shuffleButton);
+            playButton.Click += PlayButton_Click;
+            this.Controls.Add(playButton);
 
-            m_m_balanceButton = new Button
+            m_balanceButton = new Button
             {
                 Text = "BALANCE: $0",
                 Size = new Size(190, 40),
@@ -109,12 +109,12 @@ namespace Praksa
                 BackColor = Color.LightGreen,
                 Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
-            m_m_balanceButton.Click += (s, e) =>
+            m_balanceButton.Click += (s, e) =>
             {
                 m_balance += 10;
-                m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
+                m_balanceButton.Text = $"BALANCE: ${m_balance}";
             };
-            this.Controls.Add(m_m_balanceButton);
+            this.Controls.Add(m_balanceButton);
 
             m_betButton = new Button
             {
@@ -148,10 +148,10 @@ namespace Praksa
         public void LoadImages()
         {
             string imageFolder = Path.Combine(Application.StartupPath, "images");
-            string[] imageFiles = Directory.GetFiles(imageFolder, "*.jpg").Take(6).ToArray();
+            string[] imageFiles = Directory.GetFiles(imageFolder, "*.jpg").Take(NUM_OF_SYMBOLS).ToArray();
 
-            m_images = new Image[imageFiles.Length];
-            for (int i = 0; i < imageFiles.Length; i++)
+            m_images = new Image[NUM_OF_SYMBOLS];
+            for (int i = 0; i < NUM_OF_SYMBOLS; i++)
             {
                 byte[] bytes = File.ReadAllBytes(imageFiles[i]);
                 using (var ms = new MemoryStream(bytes))
@@ -169,15 +169,13 @@ namespace Praksa
             int startY = (this.ClientSize.Height - columnHeight) / 2;
 
             m_columnPictures = new PictureBox[NUM_OF_REELS][];
-            m_columnTypes = new Simboli[NUM_OF_REELS][];
 
             for (int col = 0; col < NUM_OF_REELS; col++)
             {
                 m_columnPictures[col] = new PictureBox[PICTURES_PER_REEL];
-                m_columnTypes[col] = new Simboli[PICTURES_PER_REEL];
 
                 int x = startX + col * (SYMBOL_WIDTH + REELS_GAP);
-                Panel column = new Panel
+                Panel columnPanel = new Panel
                 {
                     Size = new Size(SYMBOL_WIDTH, columnHeight),
                     Location = new Point(x, startY),
@@ -205,10 +203,9 @@ namespace Praksa
                     }
 
                     m_columnPictures[col][row] = pic;
-                    column.Controls.Add(pic);
+                    columnPanel.Controls.Add(pic);
                 }
-
-                this.Controls.Add(column);
+                this.Controls.Add(columnPanel);
             }
         }
 
@@ -223,7 +220,37 @@ namespace Praksa
             }
         }
 
-        private void ShuffleButton_Click(object sender, EventArgs e)
+        private void StartBounceForColumn(int col)
+        {
+            for (int r = 0; r < PICTURES_PER_REEL; r++)
+            {
+                PictureBox pic = m_columnPictures[col][r];
+                int targetY = m_originalPositions[col][r].Y;
+                int dy = targetY - pic.Top;
+
+                pic.Top += Math.Sign(dy) * 15;
+                pic.Refresh();
+                System.Threading.Thread.Sleep(20);
+                pic.Top = targetY;
+            }
+        }
+
+        private void ShuffleImages()
+        {
+            for (int col = 0; col < NUM_OF_REELS; col++)
+            {
+                for (int row = 0; row < PICTURES_PER_REEL; row++)
+                {
+                    int m_randomIndex = m_random.Next(NUM_OF_SYMBOLS);
+                    m_columnPictures[col][row].Image = (Image)m_images[m_randomIndex].Clone();
+                    m_columnPictures[col][row].Tag = (Simboli)(m_randomIndex + 1);
+                }
+            }
+        }
+
+        // ~~ Events ~~ //
+
+        private void PlayButton_Click(object sender, EventArgs e)
         {
             if (m_balance < m_currentBet)
             {
@@ -232,10 +259,10 @@ namespace Praksa
             }
 
             m_balance -= m_currentBet;
-            m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
-            ShuffleImages();
+            m_balanceButton.Text = $"BALANCE: ${m_balance}";
+            //ShuffleImages();
             m_startTime = DateTime.Now;
-            m_reelStopped = new bool[m_columnPictures.Length];
+            m_reelStopped = new bool[NUM_OF_REELS];
             m_isStopping = false;
             m_currentStoppingColumn = 0;
             m_dropTimer.Start();
@@ -243,11 +270,11 @@ namespace Praksa
 
         private void DropTimer_Tick(object sender, EventArgs e)
         {
-            for (int col = 0; col < m_columnPictures.Length; col++)
+            for (int col = 0; col < NUM_OF_REELS; col++)
             {
                 if (m_reelStopped[col]) continue;
 
-                for (int r = 0; r < m_columnPictures[col].Length; r++)
+                for (int r = 0; r < PICTURES_PER_REEL; r++)
                     m_columnPictures[col][r].Top += m_step;
 
                 var panel = m_columnPictures[col][0].Parent as Panel;
@@ -258,10 +285,9 @@ namespace Praksa
                 {
                     PictureBox recycled = bottomPic;
 
-                    for (int i = m_columnPictures[col].Length - 1; i > 0; i--)
+                    for (int i = PICTURES_PER_REEL - 1; i > 0; i--)
                     {
                         m_columnPictures[col][i] = m_columnPictures[col][i - 1];
-                        m_columnTypes[col][i] = m_columnTypes[col][i - 1];
                     }
 
                     recycled.Top = m_columnPictures[col][1].Top - recycled.Height - 10;
@@ -270,7 +296,6 @@ namespace Praksa
                     recycled.Tag = (Simboli)(newIdx + 1);
 
                     m_columnPictures[col][0] = recycled;
-                    m_columnTypes[col][0] = (Simboli)(newIdx + 1);
                 }
             }
 
@@ -280,7 +305,7 @@ namespace Praksa
                 m_currentStoppingColumn = 0;
             }
 
-            if (m_isStopping && m_currentStoppingColumn < m_columnPictures.Length)
+            if (m_isStopping && m_currentStoppingColumn < NUM_OF_REELS)
             {
                 double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
                 if (elapsed >= 2000 + m_currentStoppingColumn * 600)
@@ -298,36 +323,7 @@ namespace Praksa
             }
         }
 
-        private void StartBounceForColumn(int col)
-        {
-            for (int r = 0; r < m_columnPictures[col].Length; r++)
-            {
-                PictureBox pic = m_columnPictures[col][r];
-                int targetY = m_originalPositions[col][r].Y;
-                int dy = targetY - pic.Top;
-
-                pic.Top += Math.Sign(dy) * 15;
-                pic.Refresh();
-                System.Threading.Thread.Sleep(20);
-                pic.Top = targetY;
-            }
-        }
-
         private void BounceTimer_Tick(object sender, EventArgs e) { }
-
-        private void ShuffleImages()
-        {
-            for (int col = 0; col < m_columnPictures.Length; col++)
-            {
-                for (int row = 0; row < m_columnPictures[col].Length; row++)
-                {
-                    int m_randomIndex = m_random.Next(m_images.Length);
-                    m_columnPictures[col][row].Image = (Image)m_images[m_randomIndex].Clone();
-                    m_columnPictures[col][row].Tag = (Simboli)(m_randomIndex + 1);
-                    m_columnTypes[col][row] = (Simboli)(m_randomIndex + 1);
-                }
-            }
-        }
 
         private void CheckRowsForFirstThreeColumns_VisibleOnly()
         {
@@ -393,7 +389,7 @@ namespace Praksa
 
                     double rewardAmount = double.Parse(rewardMessage.Replace("$", ""));
                     m_balance += rewardAmount;
-                    m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
+                    m_balanceButton.Text = $"BALANCE: ${m_balance}";
                 }
             }
         }
