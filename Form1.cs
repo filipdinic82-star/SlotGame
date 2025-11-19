@@ -8,26 +8,33 @@ namespace Praksa
 {
     public partial class Form1 : Form
     {
-        private readonly Random random = new Random();
-        private PictureBox[][] columnPictures;
-        private Image[] images;
-        private Simboli[][] columnTypes;
-        private TextBox resultTextBox;
-        private Timer dropTimer;
-        private Timer bounceTimer;
-        private int currentStoppingColumn = 0;
-        private bool isStopping = false;
-        private bool isBouncing = false;
-        private int animationStep = 0;
-        const int Step = 50;
-        private Point[][] originalPositions;
-        private const int SpinDuzMs = 3000;
-        private DateTime startTime;
-        private double balance = 0;
-        private double currentBet = 0.5;
-        private Button balanceButton;
-        private Button betButton;
-        private bool[] reelStopped;
+        // Constants
+        private const int SYMBOL_WIDTH = 150;
+        private const int SYMBOL_HEIGHT = 150;
+        private const int REELS_GAP = 30;
+        private const int SYMBOLS_GAP = 5;
+        private const int NUM_OF_REELS = 5;
+        private const int SYMBOLS_PER_REEL = 3;
+
+        private readonly Random m_random = new Random();
+        private Simboli[][] m_columnTypes;
+        // Form
+        private TextBox m_resultTextBox;
+        private Button m_m_balanceButton;
+        private Button m_betButton;
+        private PictureBox[][] m_columnPictures;
+        private Image[] m_images;
+
+        private Timer m_dropTimer;
+        private Timer m_bounceTimer;
+        private int m_currentStoppingColumn = 0;
+        private bool m_isStopping = false;
+        const int m_step = 50;
+        private Point[][] m_originalPositions;
+        private DateTime m_startTime;
+        private double m_balance = 0;
+        private double m_currentBet = 0.5;
+        private bool[] m_reelStopped;
 
         enum Simboli
         {
@@ -39,15 +46,15 @@ namespace Praksa
             Sedmica = 6,
         }
 
-        public Form1()
+        public void InitializeForm()
         {
-            InitializeComponent();
-
+            // Form Window
             this.Size = new Size(1080, 700);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
 
+            // Background
             string bgPath = Path.Combine(Application.StartupPath, "images", "pozadina.jpg");
             if (File.Exists(bgPath))
             {
@@ -55,100 +62,8 @@ namespace Praksa
                 this.BackgroundImageLayout = ImageLayout.Stretch;
             }
 
-            int numColumns = 5;
-            int columnWidth = 150;
-            int columnHeight = 500;
-            int spacing = 30;
-            int pictureBoxSize = 150;
-            int picturesPerColumn = 4;
-
-            int layoutWidth = (columnWidth * numColumns) + (spacing * (numColumns - 1));
-            int startX = (this.ClientSize.Width - layoutWidth) / 2;
-            int startY = (this.ClientSize.Height - columnHeight) / 2;
-
-            string imageFolder = Path.Combine(Application.StartupPath, "images");
-            string[] imageFiles = Directory.GetFiles(imageFolder, "*.jpg").Take(6).ToArray();
-
-            images = new Image[imageFiles.Length];
-            for (int i = 0; i < imageFiles.Length; i++)
-            {
-                byte[] bytes = File.ReadAllBytes(imageFiles[i]);
-                using (var ms = new MemoryStream(bytes))
-                {
-                    images[i] = Image.FromStream(ms);
-                }
-            }
-
-            columnPictures = new PictureBox[numColumns][];
-            columnTypes = new Simboli[numColumns][];
-
-            for (int col = 0; col < numColumns; col++)
-            {
-                columnPictures[col] = new PictureBox[picturesPerColumn];
-                columnTypes[col] = new Simboli[picturesPerColumn];
-
-                int x = startX + col * (columnWidth + spacing);
-                Panel column = new Panel
-                {
-                    Size = new Size(columnWidth, columnHeight),
-                    Location = new Point(x, startY),
-                    BackColor = Color.DarkGray,
-                };
-
-                Label lbl = new Label
-                {
-                    Text = $"Kolona {col + 1}",
-                    Dock = DockStyle.Top,
-                    Height = 25,
-                    ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-                column.Controls.Add(lbl);
-
-                int visibleRows = picturesPerColumn - 1;
-                int totalVisibleHeight = visibleRows * pictureBoxSize;
-                int availableSpace = columnHeight - lbl.Height;
-                int topMargin = lbl.Height + (availableSpace - totalVisibleHeight) / 2;
-                int spaceBetween = 5;
-
-                for (int row = 0; row < picturesPerColumn; row++)
-                {
-                    PictureBox pic = new PictureBox
-                    {
-                        Size = new Size(pictureBoxSize, pictureBoxSize),
-                        BackColor = Color.WhiteSmoke,
-                        BorderStyle = BorderStyle.FixedSingle,
-                        SizeMode = PictureBoxSizeMode.Zoom
-                    };
-
-                    if (row == 0)
-                        pic.Location = new Point((columnWidth - pictureBoxSize) / 2, topMargin - pictureBoxSize - 10);
-                    else
-                    {
-                        int visibleRowIndex = row - 1;
-                        pic.Location = new Point(
-                            (columnWidth - pictureBoxSize) / 2,
-                            topMargin + visibleRowIndex * (pictureBoxSize + spaceBetween)
-                        );
-                    }
-
-                    columnPictures[col][row] = pic;
-                    column.Controls.Add(pic);
-                }
-
-                this.Controls.Add(column);
-            }
-
-            originalPositions = new Point[columnPictures.Length][];
-            for (int col = 0; col < columnPictures.Length; col++)
-            {
-                originalPositions[col] = new Point[columnPictures[col].Length];
-                for (int r = 0; r < columnPictures[col].Length; r++)
-                    originalPositions[col][r] = columnPictures[col][r].Location;
-            }
-
-            resultTextBox = new TextBox
+            // Controls
+            m_resultTextBox = new TextBox
             {
                 Name = "Dobitak",
                 Multiline = false,
@@ -160,7 +75,7 @@ namespace Praksa
                 BackColor = Color.Gray,
                 Font = new Font("Segoe UI", 18, FontStyle.Bold)
             };
-            this.Controls.Add(resultTextBox);
+            this.Controls.Add(m_resultTextBox);
 
             Button shuffleButton = new Button
             {
@@ -173,16 +88,7 @@ namespace Praksa
             shuffleButton.Click += ShuffleButton_Click;
             this.Controls.Add(shuffleButton);
 
-            dropTimer = new Timer();
-            dropTimer.Interval = 25;
-            dropTimer.Tick += DropTimer_Tick;
-
-            bounceTimer = new Timer();
-            bounceTimer.Interval = 10;
-            bounceTimer.Tick += BounceTimer_Tick;
-
-            ShuffleImages();
-            balanceButton = new Button
+            m_m_balanceButton = new Button
             {
                 Text = "BALANCE: $0",
                 Size = new Size(190, 40),
@@ -190,14 +96,14 @@ namespace Praksa
                 BackColor = Color.LightGreen,
                 Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
-            balanceButton.Click += (s, e) =>
+            m_m_balanceButton.Click += (s, e) =>
             {
-                balance += 10;
-                balanceButton.Text = $"BALANCE: ${balance}";
+                m_balance += 10;
+                m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
             };
-            this.Controls.Add(balanceButton);
+            this.Controls.Add(m_m_balanceButton);
 
-            betButton = new Button
+            m_betButton = new Button
             {
                 Text = "BET: $0.5",
                 Size = new Size(180, 40),
@@ -205,102 +111,191 @@ namespace Praksa
                 BackColor = Color.Orange,
                 Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
-            betButton.Click += (s, e) =>
+            m_betButton.Click += (s, e) =>
             {
-                if (currentBet == 0.5) currentBet = 1;
-                else if (currentBet == 1) currentBet = 1.5;
-                else if (currentBet == 1.5) currentBet = 2;
-                else currentBet = 0.5;
+                if (m_currentBet == 0.5) m_currentBet = 1;
+                else if (m_currentBet == 1) m_currentBet = 1.5;
+                else if (m_currentBet == 1.5) m_currentBet = 2;
+                else m_currentBet = 0.5;
 
-                betButton.Text = $"BET: ${currentBet}";
+                m_betButton.Text = $"BET: ${m_currentBet}";
             };
-            this.Controls.Add(betButton);
+            this.Controls.Add(m_betButton);
+        }
+
+        public void LoadImages()
+        {
+            string imageFolder = Path.Combine(Application.StartupPath, "images");
+            string[] imageFiles = Directory.GetFiles(imageFolder, "*.jpg").Take(6).ToArray();
+
+            m_images = new Image[imageFiles.Length];
+            for (int i = 0; i < imageFiles.Length; i++)
+            {
+                byte[] bytes = File.ReadAllBytes(imageFiles[i]);
+                using (var ms = new MemoryStream(bytes))
+                {
+                    m_images[i] = Image.FromStream(ms);
+                }
+            }
+        }
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            InitializeForm();
+            LoadImages();
+
+            int columnHeight = SYMBOLS_PER_REEL * SYMBOL_HEIGHT + 2 * SYMBOLS_GAP;
+            int picturesPerColumn = SYMBOLS_PER_REEL + 1;
+
+            int layoutWidth = (SYMBOL_WIDTH * NUM_OF_REELS) + (REELS_GAP * (NUM_OF_REELS - 1));
+            int startX = (this.ClientSize.Width - layoutWidth) / 2;
+            int startY = (this.ClientSize.Height - columnHeight) / 2;
+
+            m_columnPictures = new PictureBox[NUM_OF_REELS][];
+            m_columnTypes = new Simboli[NUM_OF_REELS][];
+
+            for (int col = 0; col < NUM_OF_REELS; col++)
+            {
+                m_columnPictures[col] = new PictureBox[picturesPerColumn];
+                m_columnTypes[col] = new Simboli[picturesPerColumn];
+
+                int x = startX + col * (SYMBOL_WIDTH + REELS_GAP);
+                Panel column = new Panel
+                {
+                    Size = new Size(SYMBOL_WIDTH, columnHeight),
+                    Location = new Point(x, startY),
+                    BackColor = Color.DarkGray,
+                };
+
+                for (int row = 0; row < picturesPerColumn; row++)
+                {
+                    PictureBox pic = new PictureBox
+                    {
+                        Size = new Size(SYMBOL_WIDTH, SYMBOL_HEIGHT),
+                        BackColor = Color.WhiteSmoke,
+                        BorderStyle = BorderStyle.FixedSingle,
+                        SizeMode = PictureBoxSizeMode.Zoom
+                    };
+
+                    if (row == 0)
+                        pic.Location = new Point(0, -(SYMBOL_HEIGHT + SYMBOLS_GAP));
+                    else
+                    {
+                        int visibleRowIndex = row - 1;
+                        pic.Location = new Point(
+                            0, visibleRowIndex * (SYMBOL_HEIGHT + SYMBOLS_GAP)
+                        );
+                    }
+
+                    m_columnPictures[col][row] = pic;
+                    column.Controls.Add(pic);
+                }
+
+                this.Controls.Add(column);
+            }
+
+            m_originalPositions = new Point[m_columnPictures.Length][];
+            for (int col = 0; col < m_columnPictures.Length; col++)
+            {
+                m_originalPositions[col] = new Point[m_columnPictures[col].Length];
+                for (int r = 0; r < m_columnPictures[col].Length; r++)
+                    m_originalPositions[col][r] = m_columnPictures[col][r].Location;
+            }
+
+            m_dropTimer = new Timer();
+            m_dropTimer.Interval = 25;
+            m_dropTimer.Tick += DropTimer_Tick;
+
+            m_bounceTimer = new Timer();
+            m_bounceTimer.Interval = 10;
+            m_bounceTimer.Tick += BounceTimer_Tick;
+
+            ShuffleImages();
         }
 
         private void ShuffleButton_Click(object sender, EventArgs e)
         {
-            if (balance < currentBet)
+            if (m_balance < m_currentBet)
             {
-                MessageBox.Show("Can't spin not enough balance!");
+                MessageBox.Show("Can't spin not enough m_balance!");
                 return;
             }
 
-            balance -= currentBet;
-            balanceButton.Text = $"BALANCE: ${balance}";
+            m_balance -= m_currentBet;
+            m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
             ShuffleImages();
-            startTime = DateTime.Now;
-            reelStopped = new bool[columnPictures.Length];
-            isStopping = false;
-            isBouncing = false;
-            currentStoppingColumn = 0;
-            dropTimer.Start();
+            m_startTime = DateTime.Now;
+            m_reelStopped = new bool[m_columnPictures.Length];
+            m_isStopping = false;
+            m_currentStoppingColumn = 0;
+            m_dropTimer.Start();
         }
 
         private void DropTimer_Tick(object sender, EventArgs e)
         {
-            for (int col = 0; col < columnPictures.Length; col++)
+            for (int col = 0; col < m_columnPictures.Length; col++)
             {
-                if (reelStopped[col]) continue;
+                if (m_reelStopped[col]) continue;
 
-                for (int r = 0; r < columnPictures[col].Length; r++)
-                    columnPictures[col][r].Top += Step;
+                for (int r = 0; r < m_columnPictures[col].Length; r++)
+                    m_columnPictures[col][r].Top += m_step;
 
-                var panel = columnPictures[col][0].Parent as Panel;
+                var panel = m_columnPictures[col][0].Parent as Panel;
                 int labelHeight = panel.Controls.OfType<Label>().FirstOrDefault()?.Height ?? 0;
 
-                var bottomPic = columnPictures[col].Last();
+                var bottomPic = m_columnPictures[col].Last();
                 if (bottomPic.Top >= panel.Height + labelHeight)
                 {
                     PictureBox recycled = bottomPic;
 
-                    for (int i = columnPictures[col].Length - 1; i > 0; i--)
+                    for (int i = m_columnPictures[col].Length - 1; i > 0; i--)
                     {
-                        columnPictures[col][i] = columnPictures[col][i - 1];
-                        columnTypes[col][i] = columnTypes[col][i - 1];
+                        m_columnPictures[col][i] = m_columnPictures[col][i - 1];
+                        m_columnTypes[col][i] = m_columnTypes[col][i - 1];
                     }
 
-                    recycled.Top = columnPictures[col][1].Top - recycled.Height - 10;
-                    int newIdx = random.Next(images.Length);
-                    recycled.Image = (Image)images[newIdx].Clone();
+                    recycled.Top = m_columnPictures[col][1].Top - recycled.Height - 10;
+                    int newIdx = m_random.Next(m_images.Length);
+                    recycled.Image = (Image)m_images[newIdx].Clone();
                     recycled.Tag = (Simboli)(newIdx + 1);
 
-                    columnPictures[col][0] = recycled;
-                    columnTypes[col][0] = (Simboli)(newIdx + 1);
+                    m_columnPictures[col][0] = recycled;
+                    m_columnTypes[col][0] = (Simboli)(newIdx + 1);
                 }
             }
 
-            if (!isStopping && (DateTime.Now - startTime).TotalMilliseconds >= 2000)
+            if (!m_isStopping && (DateTime.Now - m_startTime).TotalMilliseconds >= 2000)
             {
-                isStopping = true;
-                currentStoppingColumn = 0;
+                m_isStopping = true;
+                m_currentStoppingColumn = 0;
             }
 
-            if (isStopping && currentStoppingColumn < columnPictures.Length)
+            if (m_isStopping && m_currentStoppingColumn < m_columnPictures.Length)
             {
-                double elapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                if (elapsed >= 2000 + currentStoppingColumn * 600)
+                double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
+                if (elapsed >= 2000 + m_currentStoppingColumn * 600)
                 {
-                    reelStopped[currentStoppingColumn] = true;
-                    StartBounceForColumn(currentStoppingColumn);
-                    currentStoppingColumn++;
+                    m_reelStopped[m_currentStoppingColumn] = true;
+                    StartBounceForColumn(m_currentStoppingColumn);
+                    m_currentStoppingColumn++;
                 }
             }
 
-            if (reelStopped.All(r => r))
+            if (m_reelStopped.All(r => r))
             {
-                dropTimer.Stop();
+                m_dropTimer.Stop();
                 CheckRowsForFirstThreeColumns_VisibleOnly();
             }
         }
 
         private void StartBounceForColumn(int col)
         {
-            isBouncing = true;
-
-            for (int r = 0; r < columnPictures[col].Length; r++)
+            for (int r = 0; r < m_columnPictures[col].Length; r++)
             {
-                PictureBox pic = columnPictures[col][r];
-                int targetY = originalPositions[col][r].Y;
+                PictureBox pic = m_columnPictures[col][r];
+                int targetY = m_originalPositions[col][r].Y;
                 int dy = targetY - pic.Top;
 
                 pic.Top += Math.Sign(dy) * 15;
@@ -308,29 +303,27 @@ namespace Praksa
                 System.Threading.Thread.Sleep(20);
                 pic.Top = targetY;
             }
-
-            isBouncing = false;
         }
 
         private void BounceTimer_Tick(object sender, EventArgs e) { }
 
         private void ShuffleImages()
         {
-            for (int col = 0; col < columnPictures.Length; col++)
+            for (int col = 0; col < m_columnPictures.Length; col++)
             {
-                for (int row = 0; row < columnPictures[col].Length; row++)
+                for (int row = 0; row < m_columnPictures[col].Length; row++)
                 {
-                    int randomIndex = random.Next(images.Length);
-                    columnPictures[col][row].Image = (Image)images[randomIndex].Clone();
-                    columnPictures[col][row].Tag = (Simboli)(randomIndex + 1);
-                    columnTypes[col][row] = (Simboli)(randomIndex + 1);
+                    int m_randomIndex = m_random.Next(m_images.Length);
+                    m_columnPictures[col][row].Image = (Image)m_images[m_randomIndex].Clone();
+                    m_columnPictures[col][row].Tag = (Simboli)(m_randomIndex + 1);
+                    m_columnTypes[col][row] = (Simboli)(m_randomIndex + 1);
                 }
             }
         }
 
         private void CheckRowsForFirstThreeColumns_VisibleOnly()
         {
-            resultTextBox.Clear();
+            m_resultTextBox.Clear();
 
             int colsToCheck = 3;
             int neededVisibleRows = 3;
@@ -339,7 +332,7 @@ namespace Praksa
 
             for (int col = 0; col < colsToCheck; col++)
             {
-                var panel = columnPictures[col][0].Parent as Panel;
+                var panel = m_columnPictures[col][0].Parent as Panel;
                 if (panel == null)
                 {
                     visiblePerColumn.Add(new PictureBox[0]);
@@ -351,7 +344,7 @@ namespace Praksa
 
                 Rectangle visibleRect = new Rectangle(0, labelBottom, panel.Width, panel.Height - labelBottom);
 
-                var visiblePics = columnPictures[col]
+                var visiblePics = m_columnPictures[col]
                     .Where(pic => pic != null && pic.Bounds.IntersectsWith(visibleRect) && pic.Visible)
                     .OrderBy(pic => pic.Top)
                     .ToArray();
@@ -388,11 +381,11 @@ namespace Praksa
                         case Simboli.Kovceg: rewardMessage = "$10"; break;
                         case Simboli.Sedmica: rewardMessage = "$12"; break;
                     }
-                    resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
+                    m_resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
 
                     double rewardAmount = double.Parse(rewardMessage.Replace("$", ""));
-                    balance += rewardAmount;
-                    balanceButton.Text = $"BALANCE: ${balance}";
+                    m_balance += rewardAmount;
+                    m_m_balanceButton.Text = $"BALANCE: ${m_balance}";
                 }
             }
         }
