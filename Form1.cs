@@ -15,11 +15,19 @@ namespace Praksa
         private TextBox resultTextBox;
         private Timer dropTimer;
         private Timer bounceTimer;
-        private bool[][] bounceDone;
+        private int currentStoppingColumn = 0;
+        private bool isStopping = false;
+        private bool isBouncing = false;
         private int animationStep = 0;
         const int Step = 50;
         private Point[][] originalPositions;
         private const int SpinDuzMs = 3000;
+        private DateTime startTime;
+        private double balance = 0;
+        private double currentBet = 0.5;
+        private Button balanceButton;
+        private Button betButton;
+        private bool[] reelStopped;
 
         enum Simboli
         {
@@ -39,9 +47,13 @@ namespace Praksa
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
+
             string bgPath = Path.Combine(Application.StartupPath, "images", "pozadina.jpg");
-            this.BackgroundImage = Image.FromFile(bgPath);
-            this.BackgroundImageLayout = ImageLayout.Stretch;
+            if (File.Exists(bgPath))
+            {
+                this.BackgroundImage = Image.FromFile(bgPath);
+                this.BackgroundImageLayout = ImageLayout.Stretch;
+            }
 
             int numColumns = 5;
             int columnWidth = 150;
@@ -111,9 +123,7 @@ namespace Praksa
                     };
 
                     if (row == 0)
-                    {
                         pic.Location = new Point((columnWidth - pictureBoxSize) / 2, topMargin - pictureBoxSize - 10);
-                    }
                     else
                     {
                         int visibleRowIndex = row - 1;
@@ -135,9 +145,7 @@ namespace Praksa
             {
                 originalPositions[col] = new Point[columnPictures[col].Length];
                 for (int r = 0; r < columnPictures[col].Length; r++)
-                {
                     originalPositions[col][r] = columnPictures[col][r].Location;
-                }
             }
 
             resultTextBox = new TextBox
@@ -154,16 +162,11 @@ namespace Praksa
             };
             this.Controls.Add(resultTextBox);
 
-            int buttonWidth = 140;
-            int buttonHeight = 40;
-            int buttonX = (this.ClientSize.Width - buttonWidth) / 2;
-            int buttonY = this.ClientSize.Height - buttonHeight - 10;
-
             Button shuffleButton = new Button
             {
                 Text = "PLAY",
-                Size = new Size(buttonWidth, buttonHeight),
-                Location = new Point(buttonX, buttonY),
+                Size = new Size(140, 50),
+                Location = new Point((this.ClientSize.Width - 140) / 2, this.ClientSize.Height - 60),
                 BackColor = Color.LightGray,
                 Font = new Font("Segoe UI", 16, FontStyle.Bold)
             };
@@ -172,45 +175,75 @@ namespace Praksa
 
             dropTimer = new Timer();
             dropTimer.Interval = 25;
-            dropTimer.Tick += dropTimer_Tick;
+            dropTimer.Tick += DropTimer_Tick;
 
             bounceTimer = new Timer();
             bounceTimer.Interval = 10;
             bounceTimer.Tick += BounceTimer_Tick;
 
             ShuffleImages();
+            balanceButton = new Button
+            {
+                Text = "BALANCE: $0",
+                Size = new Size(190, 40),
+                Location = new Point(260, this.ClientSize.Height - 50),
+                BackColor = Color.LightGreen,
+                Font = new Font("Segoe UI", 16, FontStyle.Bold)
+            };
+            balanceButton.Click += (s, e) =>
+            {
+                balance += 10;
+                balanceButton.Text = $"BALANCE: ${balance}";
+            };
+            this.Controls.Add(balanceButton);
+
+            betButton = new Button
+            {
+                Text = "BET: $0.5",
+                Size = new Size(180, 40),
+                Location = new Point(620, this.ClientSize.Height - 50),
+                BackColor = Color.Orange,
+                Font = new Font("Segoe UI", 16, FontStyle.Bold)
+            };
+            betButton.Click += (s, e) =>
+            {
+                if (currentBet == 0.5) currentBet = 1;
+                else if (currentBet == 1) currentBet = 1.5;
+                else if (currentBet == 1.5) currentBet = 2;
+                else currentBet = 0.5;
+
+                betButton.Text = $"BET: ${currentBet}";
+            };
+            this.Controls.Add(betButton);
         }
 
-        private DateTime spinStart;
         private void ShuffleButton_Click(object sender, EventArgs e)
         {
-            animationStep = 0;
-            spinStart = DateTime.Now;
-
-            for (int col = 0; col < columnPictures.Length; col++)
+            if (balance < currentBet)
             {
-                int newIndex = random.Next(images.Length);
-                var top = columnPictures[col][0];
-                top.Image = (Image)images[newIndex].Clone();
-                top.Tag = (Simboli)(newIndex + 1);
-                top.Top = columnPictures[col][1].Top - top.Height - 10;
-                top.Visible = true;
+                MessageBox.Show("Can't spin not enough balance!");
+                return;
             }
 
+            balance -= currentBet;
+            balanceButton.Text = $"BALANCE: ${balance}";
+            ShuffleImages();
+            startTime = DateTime.Now;
+            reelStopped = new bool[columnPictures.Length];
+            isStopping = false;
+            isBouncing = false;
+            currentStoppingColumn = 0;
             dropTimer.Start();
         }
 
-        private void dropTimer_Tick(object sender, EventArgs e)
+        private void DropTimer_Tick(object sender, EventArgs e)
         {
-            animationStep++;
-
             for (int col = 0; col < columnPictures.Length; col++)
             {
+                if (reelStopped[col]) continue;
+
                 for (int r = 0; r < columnPictures[col].Length; r++)
-                {
-                    var pic = columnPictures[col][r];
-                    pic.Top += Step;
-                }
+                    columnPictures[col][r].Top += Step;
 
                 var panel = columnPictures[col][0].Parent as Panel;
                 int labelHeight = panel.Controls.OfType<Label>().FirstOrDefault()?.Height ?? 0;
@@ -227,7 +260,6 @@ namespace Praksa
                     }
 
                     recycled.Top = columnPictures[col][1].Top - recycled.Height - 10;
-
                     int newIdx = random.Next(images.Length);
                     recycled.Image = (Image)images[newIdx].Clone();
                     recycled.Tag = (Simboli)(newIdx + 1);
@@ -237,96 +269,50 @@ namespace Praksa
                 }
             }
 
-            if ((DateTime.Now - spinStart).TotalMilliseconds >= SpinDuzMs)
+            if (!isStopping && (DateTime.Now - startTime).TotalMilliseconds >= 2000)
+            {
+                isStopping = true;
+                currentStoppingColumn = 0;
+            }
+
+            if (isStopping && currentStoppingColumn < columnPictures.Length)
+            {
+                double elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                if (elapsed >= 2000 + currentStoppingColumn * 600)
+                {
+                    reelStopped[currentStoppingColumn] = true;
+                    StartBounceForColumn(currentStoppingColumn);
+                    currentStoppingColumn++;
+                }
+            }
+
+            if (reelStopped.All(r => r))
             {
                 dropTimer.Stop();
-                StartBounceAnimation();
-            }
-        }
-
-        private void StartBounceAnimation()
-        {
-            int cols = columnPictures.Length;
-            bounceDone = new bool[cols][];
-            for (int col = 0; col < cols; col++)
-            {
-                bounceDone[col] = new bool[columnPictures[col].Length];
-            }
-            bounceTimer.Start();
-        }
-
-        private void BounceTimer_Tick(object sender, EventArgs e)
-        {
-            bool allDone = true;
-
-            for (int col = 0; col < columnPictures.Length; col++)
-            {
-                bool columnDone = true;
-                Panel panel = columnPictures[col][0].Parent as Panel;
-                if (panel == null) continue;
-
-                for (int r = 0; r < columnPictures[col].Length; r++)
-                {
-                    PictureBox pic = columnPictures[col][r];
-                    int targetY = originalPositions[col][r].Y;
-                    int dy = targetY - pic.Top;
-
-
-                    if (Math.Abs(dy) > 6)
-                    {
-                        pic.Top += Math.Sign(dy) * 10;
-                        columnDone = false;
-                    }
-                    else if (!bounceDone[col][r])
-                    {
-
-                        pic.Top = targetY + (Math.Sign(dy) * 6);
-                        pic.Refresh();
-                        System.Threading.Thread.Sleep(8);
-                        pic.Top = targetY;
-                        bounceDone[col][r] = true;
-                    }
-
-
-                    if (pic.Bottom < 0)
-                        pic.Visible = false;
-                    else if (pic.Top > panel.Height)
-                        pic.Visible = false;
-                    else
-                        pic.Visible = true;
-                }
-
-                if (!columnDone)
-                    allDone = false;
-            }
-
-            if (allDone)
-            {
-                bounceTimer.Stop();
-
-                for (int col = 0; col < columnPictures.Length; col++)
-                {
-                    Panel panel = columnPictures[col][0].Parent as Panel;
-                    if (panel == null) continue;
-
-                    int visibleCount = 3;
-                    int invisibleIndex = 0;
-
-                    columnPictures[col][invisibleIndex].Top =
-                        originalPositions[col][1].Y - columnPictures[col][invisibleIndex].Height - 5;
-
-                    columnPictures[col][invisibleIndex].Visible = false;
-
-                    for (int r = 1; r <= visibleCount; r++)
-                    {
-                        columnPictures[col][r].Location = originalPositions[col][r];
-                        columnPictures[col][r].Visible = true;
-                    }
-                }
-
                 CheckRowsForFirstThreeColumns_VisibleOnly();
             }
         }
+
+        private void StartBounceForColumn(int col)
+        {
+            isBouncing = true;
+
+            for (int r = 0; r < columnPictures[col].Length; r++)
+            {
+                PictureBox pic = columnPictures[col][r];
+                int targetY = originalPositions[col][r].Y;
+                int dy = targetY - pic.Top;
+
+                pic.Top += Math.Sign(dy) * 15;
+                pic.Refresh();
+                System.Threading.Thread.Sleep(20);
+                pic.Top = targetY;
+            }
+
+            isBouncing = false;
+        }
+
+        private void BounceTimer_Tick(object sender, EventArgs e) { }
 
         private void ShuffleImages()
         {
@@ -403,6 +389,10 @@ namespace Praksa
                         case Simboli.Sedmica: rewardMessage = "$12"; break;
                     }
                     resultTextBox.AppendText($"YOU WON: {rewardMessage}\r\n");
+
+                    double rewardAmount = double.Parse(rewardMessage.Replace("$", ""));
+                    balance += rewardAmount;
+                    balanceButton.Text = $"BALANCE: ${balance}";
                 }
             }
         }
