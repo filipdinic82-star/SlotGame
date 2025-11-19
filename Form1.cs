@@ -13,8 +13,10 @@ namespace Praksa
         private const int SYMBOL_HEIGHT = 150;
         private const int REELS_GAP = 30;
         private const int SYMBOLS_GAP = 5;
+
         private const int NUM_OF_REELS = 5;
         private const int SYMBOLS_PER_REEL = 3;
+        private const int PICTURES_PER_REEL = SYMBOLS_PER_REEL + 1;
 
         private readonly Random m_random = new Random();
         private Simboli[][] m_columnTypes;
@@ -44,6 +46,17 @@ namespace Praksa
             Kruna = 4,
             Kovceg = 5,
             Sedmica = 6,
+        }
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            InitializeForm();
+            LoadImages();
+            InitializeReels();
+            InitializePositions();
+            ShuffleImages();
         }
 
         public void InitializeForm()
@@ -121,6 +134,15 @@ namespace Praksa
                 m_betButton.Text = $"BET: ${m_currentBet}";
             };
             this.Controls.Add(m_betButton);
+
+            // Timers
+            m_dropTimer = new Timer();
+            m_dropTimer.Interval = 25;
+            m_dropTimer.Tick += DropTimer_Tick;
+
+            m_bounceTimer = new Timer();
+            m_bounceTimer.Interval = 10;
+            m_bounceTimer.Tick += BounceTimer_Tick;
         }
 
         public void LoadImages()
@@ -139,17 +161,10 @@ namespace Praksa
             }
         }
 
-        public Form1()
+        public void InitializeReels()
         {
-            InitializeComponent();
-
-            InitializeForm();
-            LoadImages();
-
-            int columnHeight = SYMBOLS_PER_REEL * SYMBOL_HEIGHT + 2 * SYMBOLS_GAP;
-            int picturesPerColumn = SYMBOLS_PER_REEL + 1;
-
             int layoutWidth = (SYMBOL_WIDTH * NUM_OF_REELS) + (REELS_GAP * (NUM_OF_REELS - 1));
+            int columnHeight = SYMBOLS_PER_REEL * SYMBOL_HEIGHT + 2 * SYMBOLS_GAP;
             int startX = (this.ClientSize.Width - layoutWidth) / 2;
             int startY = (this.ClientSize.Height - columnHeight) / 2;
 
@@ -158,8 +173,8 @@ namespace Praksa
 
             for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                m_columnPictures[col] = new PictureBox[picturesPerColumn];
-                m_columnTypes[col] = new Simboli[picturesPerColumn];
+                m_columnPictures[col] = new PictureBox[PICTURES_PER_REEL];
+                m_columnTypes[col] = new Simboli[PICTURES_PER_REEL];
 
                 int x = startX + col * (SYMBOL_WIDTH + REELS_GAP);
                 Panel column = new Panel
@@ -169,7 +184,7 @@ namespace Praksa
                     BackColor = Color.DarkGray,
                 };
 
-                for (int row = 0; row < picturesPerColumn; row++)
+                for (int row = 0; row < PICTURES_PER_REEL; row++)
                 {
                     PictureBox pic = new PictureBox
                     {
@@ -195,24 +210,17 @@ namespace Praksa
 
                 this.Controls.Add(column);
             }
+        }
 
-            m_originalPositions = new Point[m_columnPictures.Length][];
-            for (int col = 0; col < m_columnPictures.Length; col++)
+        public void InitializePositions()
+        {
+            m_originalPositions = new Point[NUM_OF_REELS][];
+            for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                m_originalPositions[col] = new Point[m_columnPictures[col].Length];
-                for (int r = 0; r < m_columnPictures[col].Length; r++)
+                m_originalPositions[col] = new Point[PICTURES_PER_REEL];
+                for (int r = 0; r < PICTURES_PER_REEL; r++)
                     m_originalPositions[col][r] = m_columnPictures[col][r].Location;
             }
-
-            m_dropTimer = new Timer();
-            m_dropTimer.Interval = 25;
-            m_dropTimer.Tick += DropTimer_Tick;
-
-            m_bounceTimer = new Timer();
-            m_bounceTimer.Interval = 10;
-            m_bounceTimer.Tick += BounceTimer_Tick;
-
-            ShuffleImages();
         }
 
         private void ShuffleButton_Click(object sender, EventArgs e)
