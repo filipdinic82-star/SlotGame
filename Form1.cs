@@ -29,6 +29,7 @@ namespace Praksa
         private Button m_balanceButton;
         private Button m_betButton;
         private PictureBox[][] m_columnPictures;
+        private Simboli[][] m_reelSymbols;
         private Image[] m_images;
 
         private Timer m_dropTimer;
@@ -216,6 +217,7 @@ namespace Praksa
                 {
                     int m_randomIndex = m_random.Next(NUM_OF_SYMBOLS);
                     m_columnPictures[col][row].Image = (Image)m_images[m_randomIndex].Clone();
+                    //m_reelSymbols[col][row] = (Simboli)(m_randomIndex + 1);
                     m_columnPictures[col][row].Tag = (Simboli)(m_randomIndex + 1);
                 }
             }
@@ -227,6 +229,9 @@ namespace Praksa
 
             for (int rowIndex = 0; rowIndex < SYMBOLS_PER_REEL; rowIndex++)
             {
+                //var t0 = m_reelSymbols[0][rowIndex] as Simboli?;
+                //var t1 = m_reelSymbols[1][rowIndex] as Simboli?;
+                //var t2 = m_reelSymbols[2][rowIndex] as Simboli?;
                 var t0 = m_columnPictures[0][rowIndex + 1].Tag as Simboli?;
                 var t1 = m_columnPictures[1][rowIndex + 1].Tag as Simboli?;
                 var t2 = m_columnPictures[2][rowIndex + 1].Tag as Simboli?;
@@ -298,6 +303,7 @@ namespace Praksa
                     recycled.Tag = (Simboli)(newIdx + 1);
 
                     m_columnPictures[col][0] = recycled;
+                    //m_reelSymbols[col][0] = (Simboli)(newIdx + 1);
                 }
             }
 
