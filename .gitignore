@@ -5,3 +5,6 @@ obj/Debug/DesignTimeResolveAssemblyReferencesInput.cache
 obj/Debug/Slot Game.csproj.FileListAbsolute.txt
 /.vs
 /obj
+/bin/Debug/Praksa.vshost.exe
+/bin/Debug/Praksa.vshost.exe.config
+/bin/Debug/Praksa.vshost.exe.manifest
