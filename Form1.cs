@@ -42,6 +42,8 @@ namespace Praksa
         // m_reelStopping for bounce
         private bool[] m_reelStopping;
         private bool[] m_reelStopped;
+        private enum BounceState { None, Down, Up }
+        private BounceState[] m_bounceState;
 
         enum Simboli
         {
@@ -263,7 +265,7 @@ namespace Praksa
         {
             if (m_balance < m_currentBet)
             {
-                MessageBox.Show("Can't spin not enough m_balance!");
+                MessageBox.Show("Can't spin not enough balance!");
                 return;
             }
 
@@ -275,27 +277,29 @@ namespace Praksa
             m_reelStopped = new bool[NUM_OF_REELS];
             m_currentStoppingColumn = 0;
             m_dropTimer.Start();
+            m_bounceState = new BounceState[NUM_OF_REELS];
         }
 
         private void DropTimer_Tick(object sender, EventArgs e)
         {
+            // 1) NORMALNO SPINOVANJE — samo oni koji nisu stopirani i nisu u bounce-u
             for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                if (m_reelStopped[col]) continue;
+                if (m_reelStopped[col] || m_bounceState[col] != BounceState.None)
+                    continue;
 
                 for (int r = 0; r < PICTURES_PER_REEL; r++)
                     m_columnPictures[col][r].Top += m_step;
 
                 var panel = m_columnPictures[col][0].Parent as Panel;
+
                 var bottomPic = m_columnPictures[col].Last();
                 if (bottomPic.Top >= panel.Height)
                 {
                     PictureBox recycled = bottomPic;
 
                     for (int i = SYMBOLS_PER_REEL; i > 0; i--)
-                    {
                         m_columnPictures[col][i] = m_columnPictures[col][i - 1];
-                    }
 
                     recycled.Top = m_columnPictures[col][1].Top - SYMBOL_HEIGHT - SYMBOLS_GAP;
                     int newIdx = m_random.Next(NUM_OF_SYMBOLS);
@@ -303,40 +307,56 @@ namespace Praksa
                     recycled.Tag = (Simboli)(newIdx + 1);
 
                     m_columnPictures[col][0] = recycled;
-                    //m_reelSymbols[col][0] = (Simboli)(newIdx + 1);
                 }
             }
 
+            // 2) VREME ZA ZAUSTAVLJANJE REELA
             double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
-            if (!m_reelStopping[m_currentStoppingColumn] && elapsed >= REEL1_DURATION)
+
+            if (m_currentStoppingColumn < NUM_OF_REELS &&
+                elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION &&
+                m_bounceState[m_currentStoppingColumn] == BounceState.None)
             {
-                // Started bounce for reel 1
-                m_reelStopping[m_currentStoppingColumn] = true;
-                m_currentStoppingColumn = 0;
+                m_bounceState[m_currentStoppingColumn] = BounceState.Down;
             }
 
-            // 1. Da li je proslo vreme za zaustavljanje trenutnog reel-a
-            //if (m_reelStopping[m_currentStoppingColumn] && elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION)
+            // 3) ODRADA BOUNCE-A (DOWN → UP → STOP)
+            for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                // Pomeraj na dole slike dok pozicija prve slike ne bude na BOUNCE_OFFSET
-            }
-
-            // 2. Provera da li je dostignut BOUNCE_OFFSET
-            //if (m_reelStopping[m_currentStoppingColumn] && /* ako je dosignut BOUNCE_OFFSET */)
-            {
-                // Pomeraju se slike na gore dok slika sa indexom 1 ne dostigne poziciju 0
-            }
-
-            // 3. Ako su se slike vratile na gore na poziciju 0 pozovi setuj flag reelStpped in inkrementuj currentStoppingColumn
-            //m_reelStopped[m_currentStoppingColumn] = true;
-            //m_currentStoppingColumn++;
-
-            if (m_reelStopping[m_currentStoppingColumn] && m_currentStoppingColumn < NUM_OF_REELS)
-            {
-                if (elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION)
+                if (m_bounceState[col] == BounceState.Down)
                 {
-                    m_reelStopped[m_currentStoppingColumn] = true;
-                    m_currentStoppingColumn++;
+                    // Spuštamo sve slike dok top prve slike ne dostigne offset
+                    for (int r = 0; r < PICTURES_PER_REEL; r++)
+                        m_columnPictures[col][r].Top += 25;
+
+                    if (m_columnPictures[col][0].Top >= BOUNCE_OFFSET)
+                    {
+                        m_bounceState[col] = BounceState.Up;
+                    }
+                }
+                else if (m_bounceState[col] == BounceState.Up)
+                {
+                    // Podigni slike dok slika index 1 ne ide na Top = 0
+                    int currentTop = m_columnPictures[col][1].Top;
+
+                    if (currentTop > 0)
+                    {
+                        int move = Math.Min(25, currentTop); // poslednji milimetar poravna precizno
+                        for (int r = 0; r < PICTURES_PER_REEL; r++)
+                            m_columnPictures[col][r].Top -= move;
+                    }
+                    else
+                    {
+                        // PORAVNANJE da bude savršeno 3 slike
+                        m_columnPictures[col][1].Top = 0;
+                        m_columnPictures[col][0].Top = -(SYMBOL_HEIGHT + SYMBOLS_GAP);
+                        m_columnPictures[col][2].Top = SYMBOL_HEIGHT + SYMBOLS_GAP;
+
+                        m_reelStopped[col] = true;
+                        m_bounceState[col] = BounceState.None;
+
+                        m_currentStoppingColumn++;
+                    }
                 }
             }
 
