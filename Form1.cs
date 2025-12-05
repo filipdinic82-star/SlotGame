@@ -21,6 +21,7 @@ namespace Praksa
 
         private const int REEL1_DURATION = 1300;
         private const int REEL_STOPPAGE_DURATION = 300;
+        private const int BOUNCE_OFFSET = 50; // px
 
         private readonly Random m_random = new Random();
         // Form
@@ -28,18 +29,21 @@ namespace Praksa
         private Button m_balanceButton;
         private Button m_betButton;
         private PictureBox[][] m_columnPictures;
+        private Simboli[][] m_reelSymbols;
         private Image[] m_images;
 
         private Timer m_dropTimer;
-        private Timer m_bounceTimer;
         private int m_currentStoppingColumn = 0;
-        private bool m_isStopping = false;
         const int m_step = 50;
-        private Point[][] m_originalPositions;
         private DateTime m_startTime;
         private double m_balance = 0;
         private double m_currentBet = 0.5;
+
+        // m_reelStopping for bounce
+        private bool[] m_reelStopping;
         private bool[] m_reelStopped;
+        private enum BounceState { None, Down, Up }
+        private BounceState[] m_bounceState;
 
         enum Simboli
         {
@@ -58,7 +62,6 @@ namespace Praksa
             InitializeForm();
             LoadImages();
             InitializeReels();
-            InitializePositions();
             ShuffleImages();
         }
 
@@ -142,10 +145,6 @@ namespace Praksa
             m_dropTimer = new Timer();
             m_dropTimer.Interval = 25;
             m_dropTimer.Tick += DropTimer_Tick;
-
-            m_bounceTimer = new Timer();
-            m_bounceTimer.Interval = 10;
-            m_bounceTimer.Tick += BounceTimer_Tick;
         }
 
         public void LoadImages()
@@ -212,32 +211,6 @@ namespace Praksa
             }
         }
 
-        public void InitializePositions()
-        {
-            m_originalPositions = new Point[NUM_OF_REELS][];
-            for (int col = 0; col < NUM_OF_REELS; col++)
-            {
-                m_originalPositions[col] = new Point[PICTURES_PER_REEL];
-                for (int r = 0; r < PICTURES_PER_REEL; r++)
-                    m_originalPositions[col][r] = m_columnPictures[col][r].Location;
-            }
-        }
-
-        private void StartBounceForColumn(int col)
-        {
-            for (int r = 0; r < PICTURES_PER_REEL; r++)
-            {
-                PictureBox pic = m_columnPictures[col][r];
-                int targetY = m_originalPositions[col][r].Y;
-                int dy = targetY - pic.Top;
-
-                pic.Top += Math.Sign(dy) * 15;
-                pic.Refresh();
-                System.Threading.Thread.Sleep(20);
-                pic.Top = targetY;
-            }
-        }
-
         private void ShuffleImages()
         {
             for (int col = 0; col < NUM_OF_REELS; col++)
@@ -246,6 +219,7 @@ namespace Praksa
                 {
                     int m_randomIndex = m_random.Next(NUM_OF_SYMBOLS);
                     m_columnPictures[col][row].Image = (Image)m_images[m_randomIndex].Clone();
+                    //m_reelSymbols[col][row] = (Simboli)(m_randomIndex + 1);
                     m_columnPictures[col][row].Tag = (Simboli)(m_randomIndex + 1);
                 }
             }
@@ -257,6 +231,9 @@ namespace Praksa
 
             for (int rowIndex = 0; rowIndex < SYMBOLS_PER_REEL; rowIndex++)
             {
+                //var t0 = m_reelSymbols[0][rowIndex] as Simboli?;
+                //var t1 = m_reelSymbols[1][rowIndex] as Simboli?;
+                //var t2 = m_reelSymbols[2][rowIndex] as Simboli?;
                 var t0 = m_columnPictures[0][rowIndex + 1].Tag as Simboli?;
                 var t1 = m_columnPictures[1][rowIndex + 1].Tag as Simboli?;
                 var t2 = m_columnPictures[2][rowIndex + 1].Tag as Simboli?;
@@ -288,7 +265,7 @@ namespace Praksa
         {
             if (m_balance < m_currentBet)
             {
-                MessageBox.Show("Can't spin not enough m_balance!");
+                MessageBox.Show("Can't spin not enough balance!");
                 return;
             }
 
@@ -296,31 +273,33 @@ namespace Praksa
             m_balanceButton.Text = $"BALANCE: ${m_balance}";
             //ShuffleImages();
             m_startTime = DateTime.Now;
+            m_reelStopping = new bool[NUM_OF_REELS];
             m_reelStopped = new bool[NUM_OF_REELS];
-            m_isStopping = false;
             m_currentStoppingColumn = 0;
             m_dropTimer.Start();
+            m_bounceState = new BounceState[NUM_OF_REELS];
         }
 
         private void DropTimer_Tick(object sender, EventArgs e)
         {
+            // 1) NORMALNO SPINOVANJE — samo oni koji nisu stopirani i nisu u bounce-u
             for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                if (m_reelStopped[col]) continue;
+                if (m_reelStopped[col] || m_bounceState[col] != BounceState.None)
+                    continue;
 
                 for (int r = 0; r < PICTURES_PER_REEL; r++)
                     m_columnPictures[col][r].Top += m_step;
 
                 var panel = m_columnPictures[col][0].Parent as Panel;
+
                 var bottomPic = m_columnPictures[col].Last();
                 if (bottomPic.Top >= panel.Height)
                 {
                     PictureBox recycled = bottomPic;
 
                     for (int i = SYMBOLS_PER_REEL; i > 0; i--)
-                    {
                         m_columnPictures[col][i] = m_columnPictures[col][i - 1];
-                    }
 
                     recycled.Top = m_columnPictures[col][1].Top - SYMBOL_HEIGHT - SYMBOLS_GAP;
                     int newIdx = m_random.Next(NUM_OF_SYMBOLS);
@@ -331,20 +310,49 @@ namespace Praksa
                 }
             }
 
-            if (!m_isStopping && (DateTime.Now - m_startTime).TotalMilliseconds >= REEL1_DURATION)
+            // 2) VREME ZA ZAUSTAVLJANJE REELA
+            double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
+
+            if (m_currentStoppingColumn < NUM_OF_REELS &&
+                elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION &&
+                m_bounceState[m_currentStoppingColumn] == BounceState.None)
             {
-                m_isStopping = true;
-                m_currentStoppingColumn = 0;
+                m_bounceState[m_currentStoppingColumn] = BounceState.Down;
             }
 
-            if (m_isStopping && m_currentStoppingColumn < NUM_OF_REELS)
+            // 3) ODRADA BOUNCE-A (DOWN → UP → STOP)
+            for (int col = 0; col < NUM_OF_REELS; col++)
             {
-                double elapsed = (DateTime.Now - m_startTime).TotalMilliseconds;
-                if (elapsed >= REEL1_DURATION + m_currentStoppingColumn * REEL_STOPPAGE_DURATION)
+                if (m_bounceState[col] == BounceState.Down)
                 {
-                    m_reelStopped[m_currentStoppingColumn] = true;
-                    StartBounceForColumn(m_currentStoppingColumn);
-                    m_currentStoppingColumn++;
+                    // Spuštamo sve slike dok top prve slike ne dostigne offset
+                    for (int r = 0; r < PICTURES_PER_REEL; r++)
+                        m_columnPictures[col][r].Top += 25;
+
+                    if (m_columnPictures[col][0].Top >= BOUNCE_OFFSET)
+                    {
+                        m_bounceState[col] = BounceState.Up;
+                    }
+                }
+                else if (m_bounceState[col] == BounceState.Up)
+                {
+                    // Podigni slike dok slika index 1 ne ide na Top = 0
+                    int currentTop = m_columnPictures[col][1].Top;
+
+                    if (currentTop > 0)
+                    {
+                        int move = Math.Min(25, currentTop); // poslednji milimetar poravna precizno
+                        for (int r = 0; r < PICTURES_PER_REEL; r++)
+                            m_columnPictures[col][r].Top -= move;
+                    }
+                    else
+                    {
+
+                        m_reelStopped[col] = true;
+                        m_bounceState[col] = BounceState.None;
+
+                        m_currentStoppingColumn++;
+                    }
                 }
             }
 
@@ -355,7 +363,5 @@ namespace Praksa
                 CheckFowWins();
             }
         }
-
-        private void BounceTimer_Tick(object sender, EventArgs e) { }
     }
 }
