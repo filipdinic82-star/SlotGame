@@ -347,10 +347,6 @@ namespace Praksa
                     }
                     else
                     {
-                        // PORAVNANJE da bude savršeno 3 slike
-                        m_columnPictures[col][1].Top = 0;
-                        m_columnPictures[col][0].Top = -(SYMBOL_HEIGHT + SYMBOLS_GAP);
-                        m_columnPictures[col][2].Top = SYMBOL_HEIGHT + SYMBOLS_GAP;
 
                         m_reelStopped[col] = true;
                         m_bounceState[col] = BounceState.None;
